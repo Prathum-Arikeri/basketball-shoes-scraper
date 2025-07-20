@@ -270,10 +270,84 @@ def scrape_puma():
     print(f"\nFound {len(products)} basketball shoes on Puma")
     return products
 
-def scrape_lining():
-    # TODO: implement GOAT scraper
-    # Return list of dicts with keys: name, price, url, image
-    return []
+def scrape_wayofwade():
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+
+    url = 'https://wayofwade.com/collections/basketball-shoes'  # replace with actual basketball page if different
+    driver.get(url)
+    time.sleep(2)
+
+    # Scroll to load all products
+    SCROLL_PAUSE_TIME = 2
+    max_attempts_without_new = 5
+    attempts = 0
+
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    while attempts < max_attempts_without_new:
+        # Scroll to ~90% of the page to trigger lazy load
+        driver.execute_script("""
+            window.scrollTo(0, document.body.scrollHeight * 0.9);
+        """)
+        time.sleep(SCROLL_PAUSE_TIME)
+
+        # Then scroll to bottom to load last items
+        driver.execute_script("""
+            window.scrollTo(0, document.body.scrollHeight);
+        """)
+        time.sleep(SCROLL_PAUSE_TIME)
+
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            attempts += 1
+        else:
+            attempts = 0
+        last_height = new_height
+
+    html = driver.page_source
+    soup = BeautifulSoup(html, 'html.parser')
+
+    products = []
+
+    # Each product container
+    product_divs = soup.find_all('div', class_='t4s-product')
+
+    for product in product_divs:
+        # Name & URL
+        name_tag = product.find('h3', class_='t4s-product-title')
+        url_tag = name_tag.find('a') if name_tag else None
+
+        product_name = name_tag.text.strip() if name_tag else 'Name not found'
+
+        if 'slide' in product_name.lower():
+            continue
+
+        product_url = url_tag['href'] if url_tag and url_tag.has_attr('href') else None
+        if product_url and product_url.startswith('/'):
+            product_url = 'https://wayofwade.com' + product_url
+
+        # Price
+        price_tag = product.find('div', class_='t4s-product-price')
+        price_span = price_tag.find('span', class_='money') if price_tag else None
+        product_price = price_span.text.strip() if price_span else 'Price not found'
+
+        # Image
+        img_tag = product.find('img', class_='t4s-product-main-img')
+        product_image = img_tag['src'] if img_tag and img_tag.has_attr('src') else None
+
+        products.append({
+            'name': product_name,
+            'price': product_price,
+            'url': product_url,
+            'image': product_image
+        })
+
+        print(product_name, product_price, product_url, product_image)
+
+    driver.quit()
+    print(f"\nFound {len(products)} basketball shoes on Way of Wade")
+    return products
 
 def scrape_anta():
     # TODO: implement GOAT scraper
@@ -323,10 +397,10 @@ def scrape_nba():
 def main():
     all_products = []
 
-    # print("Scraping Nike...")
-    # nike_products = scrape_nike()
-    # all_products.extend(nike_products)
-    # print(f"Got {len(nike_products)} products from Nike.\n")
+    print("Scraping Nike...")
+    nike_products = scrape_nike()
+    all_products.extend(nike_products)
+    print(f"Got {len(nike_products)} products from Nike.\n")
 
     '''
     print("Scraping StockX...")
@@ -342,22 +416,20 @@ def main():
     print(f"Got {len(goat_products)} products from GOAT.\n")
     '''
 
-    # print("Scraping Under Armour...")
-    # ua_products = scrape_ua()
-    # all_products.extend(ua_products)
-    # print(f"Got {len(ua_products)} products from Under Armour.\n")
+    print("Scraping Under Armour...")
+    ua_products = scrape_ua()
+    all_products.extend(ua_products)
+    print(f"Got {len(ua_products)} products from Under Armour.\n")
 
     print("Scraping Puma...")
     puma_products = scrape_puma()
     all_products.extend(puma_products)
     print(f"Got {len(puma_products)} products from Puma.\n")
 
-    '''
-    print("Scraping Li-Ning...")
-    lining_products = scrape_lining()
-    all_products.extend(lining_products)
-    print(f"Got {len(lining_products)} products from Li-Ning.\n")
-    '''
+    print("Scraping Way of Wade...")
+    wayofwade_products = scrape_wayofwade()
+    all_products.extend(wayofwade_products)
+    print(f"Got {len(wayofwade_products)} products from Way of Wade.\n")
 
     '''
     print("Scraping Anta...")
