@@ -8,6 +8,7 @@ This script automates Chrome to:
 - Scroll to trigger loading all 47 products
 - Parse each product's name and price
 - Print them in the terminal
+- Save the scraped data to a CSV file (`shoes.csv`)
 
 This project is part of my effort to build real-world Python skills in web scraping, automation, and data collection.
 
@@ -36,4 +37,9 @@ pip install -r requirements.txt
 **Run the scraper**
 ```bash
 python scraper.py
+```
+## Output
+```bash
+The scraper prints product names and prices in the terminal 
+and saves them to `data/shoes.csv`.
 ```
