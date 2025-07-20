@@ -1,6 +1,6 @@
 # Basketball Shoes Scraper
 
-A Python project that uses Selenium and BeautifulSoup to scrape **men's basketball shoes** and their prices from the official Nike and Under Armour website.
+A Python project that uses Selenium and BeautifulSoup to scrape **men's basketball shoes** and their prices from the official Nike, Under Armour, and Puma websites.
 
 ## Project Description
 This script automates Chrome to:

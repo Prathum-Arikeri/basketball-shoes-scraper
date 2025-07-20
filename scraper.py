@@ -207,9 +207,68 @@ def scrape_ua():
     return products
 
 def scrape_puma():
-    # TODO: implement GOAT scraper
-    # Return list of dicts with keys: name, price, url, image
-    return []
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+
+    url = 'https://us.puma.com/us/en/men/shoes/basketball?offset=0'
+    driver.get(url)
+    time.sleep(2)
+
+    # Scroll to load all products
+    SCROLL_PAUSE_TIME = 2
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(SCROLL_PAUSE_TIME)
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+    html = driver.page_source
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Find all product tiles
+    product_links = soup.find_all('a', attrs={'data-test-id': 'product-list-item-link'})
+
+    products = []
+
+    for link in product_links:
+        # Name
+        name_tag = link.find('h3')
+        product_name = name_tag.text.strip() if name_tag else 'Name not found'
+
+        # URL
+        href = link.get('href')
+        product_url = 'https://us.puma.com' + href if href else None
+
+        # Image
+        image_tag = link.find('img')
+        product_image = image_tag['src'] if image_tag and image_tag.has_attr('src') else None
+
+        # Price: try sale price first, then regular price
+        sale_price_tag = link.find('span', attrs={'data-test-id': 'sale-price'})
+        regular_price_tag = link.find('span', attrs={'data-test-id': 'price'})
+
+        if sale_price_tag:
+            product_price = sale_price_tag.text.strip()
+        elif regular_price_tag:
+            product_price = regular_price_tag.text.strip()
+        else:
+            product_price = 'Price not found'
+
+        products.append({
+            'name': product_name,
+            'price': product_price,
+            'url': product_url,
+            'image': product_image
+        })
+
+        print(product_name, product_price, product_url, product_image)
+
+    driver.quit()
+    print(f"\nFound {len(products)} basketball shoes on Puma")
+    return products
 
 def scrape_lining():
     # TODO: implement GOAT scraper
@@ -264,10 +323,10 @@ def scrape_nba():
 def main():
     all_products = []
 
-    print("Scraping Nike...")
-    nike_products = scrape_nike()
-    all_products.extend(nike_products)
-    print(f"Got {len(nike_products)} products from Nike.\n")
+    # print("Scraping Nike...")
+    # nike_products = scrape_nike()
+    # all_products.extend(nike_products)
+    # print(f"Got {len(nike_products)} products from Nike.\n")
 
     '''
     print("Scraping StockX...")
@@ -283,17 +342,15 @@ def main():
     print(f"Got {len(goat_products)} products from GOAT.\n")
     '''
 
-    print("Scraping Under Armour...")
-    ua_products = scrape_ua()
-    all_products.extend(ua_products)
-    print(f"Got {len(ua_products)} products from Under Armour.\n")
+    # print("Scraping Under Armour...")
+    # ua_products = scrape_ua()
+    # all_products.extend(ua_products)
+    # print(f"Got {len(ua_products)} products from Under Armour.\n")
 
-    '''
     print("Scraping Puma...")
     puma_products = scrape_puma()
     all_products.extend(puma_products)
     print(f"Got {len(puma_products)} products from Puma.\n")
-    '''
 
     '''
     print("Scraping Li-Ning...")
