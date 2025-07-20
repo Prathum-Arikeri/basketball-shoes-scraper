@@ -48,5 +48,5 @@ python scraper.py
 ## Output
 ```bash
 The scraper prints product names, prices, and some analysis 
-within the terminal and saves them to `data/shoes.csv`.
+within the terminal and saves them to various output formats.
 ```
