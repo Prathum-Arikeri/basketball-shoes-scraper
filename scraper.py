@@ -1,11 +1,16 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException
+from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import time
 import csv
 import random
+import json
+import sqlite3
+import pandas as pd
+import re
 
 def human_like_scroll(driver, pause_time=1.5, scroll_increment=300):
     """Scroll down the page slowly in increments with random pauses."""
@@ -36,8 +41,7 @@ def scrape_nike():
     url = 'https://www.nike.com/w/mens-basketball-shoes-3glsmznik1zy7ok'
 
     driver.get(url)
-    time.sleep(2)  # let page start loading
-    # wait_manual_bypass(30)
+    time.sleep(2)
 
     SCROLL_PAUSE_TIME = 2
     last_height = driver.execute_script("return document.body.scrollHeight")
@@ -214,7 +218,6 @@ def scrape_puma():
     driver.get(url)
     time.sleep(2)
 
-    # Scroll to load all products
     SCROLL_PAUSE_TIME = 2
     last_height = driver.execute_script("return document.body.scrollHeight")
     while True:
@@ -228,25 +231,20 @@ def scrape_puma():
     html = driver.page_source
     soup = BeautifulSoup(html, 'html.parser')
 
-    # Find all product tiles
     product_links = soup.find_all('a', attrs={'data-test-id': 'product-list-item-link'})
 
     products = []
 
     for link in product_links:
-        # Name
         name_tag = link.find('h3')
         product_name = name_tag.text.strip() if name_tag else 'Name not found'
 
-        # URL
         href = link.get('href')
         product_url = 'https://us.puma.com' + href if href else None
 
-        # Image
         image_tag = link.find('img')
         product_image = image_tag['src'] if image_tag and image_tag.has_attr('src') else None
 
-        # Price: try sale price first, then regular price
         sale_price_tag = link.find('span', attrs={'data-test-id': 'sale-price'})
         regular_price_tag = link.find('span', attrs={'data-test-id': 'price'})
 
@@ -274,11 +272,10 @@ def scrape_wayofwade():
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service)
 
-    url = 'https://wayofwade.com/collections/basketball-shoes'  # replace with actual basketball page if different
+    url = 'https://wayofwade.com/collections/basketball-shoes'
     driver.get(url)
     time.sleep(2)
 
-    # Scroll to load all products
     SCROLL_PAUSE_TIME = 2
     max_attempts_without_new = 5
     attempts = 0
@@ -286,13 +283,11 @@ def scrape_wayofwade():
     last_height = driver.execute_script("return document.body.scrollHeight")
 
     while attempts < max_attempts_without_new:
-        # Scroll to ~90% of the page to trigger lazy load
         driver.execute_script("""
             window.scrollTo(0, document.body.scrollHeight * 0.9);
         """)
         time.sleep(SCROLL_PAUSE_TIME)
 
-        # Then scroll to bottom to load last items
         driver.execute_script("""
             window.scrollTo(0, document.body.scrollHeight);
         """)
@@ -310,11 +305,9 @@ def scrape_wayofwade():
 
     products = []
 
-    # Each product container
     product_divs = soup.find_all('div', class_='t4s-product')
 
     for product in product_divs:
-        # Name & URL
         name_tag = product.find('h3', class_='t4s-product-title')
         url_tag = name_tag.find('a') if name_tag else None
 
@@ -327,12 +320,10 @@ def scrape_wayofwade():
         if product_url and product_url.startswith('/'):
             product_url = 'https://wayofwade.com' + product_url
 
-        # Price
         price_tag = product.find('div', class_='t4s-product-price')
         price_span = price_tag.find('span', class_='money') if price_tag else None
         product_price = price_span.text.strip() if price_span else 'Price not found'
 
-        # Image
         img_tag = product.find('img', class_='t4s-product-main-img')
         product_image = img_tag['src'] if img_tag and img_tag.has_attr('src') else None
 
@@ -350,9 +341,69 @@ def scrape_wayofwade():
     return products
 
 def scrape_anta():
-    # TODO: implement GOAT scraper
-    # Return list of dicts with keys: name, price, url, image
-    return []
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+
+    url = 'https://anta.com/collections/anta-basketball?sort_by=manual&filter.v.t.shopify.target-gender=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F19&filter.v.t.shopify.age-group=gid%3A%2F%2Fshopify%2FTaxonomyValue%2F2403&filter.p.m.custom.product_category=Shoes&filter.p.product_type=Basketball+Shoes&filter.v.price.gte=&filter.v.price.lte='
+    driver.get(url)
+    time.sleep(2)
+
+    products = []
+
+    while True:
+        html = driver.page_source
+        soup = BeautifulSoup(html, 'html.parser')
+
+        product_cards = soup.find_all('div', class_='position-relative sm-full-screen-padding-x no-hidden pt-special-12')
+
+        for product in product_cards:
+            title_tag = product.find('p', class_='mb-1 title font-opposans-m')
+            product_name = title_tag.text.strip() if title_tag else 'Name not found'
+
+            category_tag = product.find('p', class_='mb-0 gender-information fs-small gray-500')
+            if not category_tag or 'basketball shoes' not in category_tag.text.lower():
+                continue
+
+            sale_price_tag = product.find('span', class_='price-item--sale')
+            regular_price_tag = product.find('span', class_='price-item--regular')
+            if sale_price_tag:
+                product_price = sale_price_tag.text.strip()
+            elif regular_price_tag:
+                product_price = regular_price_tag.text.strip()
+            else:
+                product_price = 'Price not found'
+
+            url_tag = product.find('a', class_='stretched-link')
+            product_url = url_tag['href'] if url_tag and url_tag.has_attr('href') else None
+            if product_url and product_url.startswith('/'):
+                product_url = 'https://anta.com' + product_url
+
+            img_tag = product.find('img')
+            product_image = img_tag['src'] if img_tag and img_tag.has_attr('src') else None
+
+            products.append({
+                'name': product_name,
+                'price': product_price,
+                'url': product_url,
+                'image': product_image
+            })
+
+            print(product_name, product_price, product_url, product_image)
+
+        try:
+            next_page = driver.find_element(By.CSS_SELECTOR, 'a.as-pagination-link[aria-label="Next page"]')
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_page)
+            time.sleep(1)  # let it scroll
+            driver.execute_script("arguments[0].click();", next_page)
+            print("Clicked next page...")
+            time.sleep(3)  # wait for next page to load
+        except (NoSuchElementException, ElementNotInteractableException):
+            print("No next page button found or can't click; finished scraping.")
+            break
+
+    driver.quit()
+    print(f"\nFound {len(products)} basketball shoes on Anta")
+    return products
 
 def scrape_finishline():
     # TODO: implement GOAT scraper
@@ -431,12 +482,10 @@ def main():
     all_products.extend(wayofwade_products)
     print(f"Got {len(wayofwade_products)} products from Way of Wade.\n")
 
-    '''
     print("Scraping Anta...")
     anta_products = scrape_anta()
     all_products.extend(anta_products)
     print(f"Got {len(anta_products)} products from Anta.\n")
-    '''
 
     '''
     print("Scraping FinishLine...")
@@ -494,12 +543,71 @@ def main():
     print(f"Got {len(nba_products)} products from NBA Store.\n")
     '''
 
-    # Save combined results
+    # Save as CSV
     with open('data/shoes.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=['name', 'price', 'url', 'image'])
         writer.writeheader()
         writer.writerows(all_products)
-    print(f"\nSaved total {len(all_products)} products to data/shoes.csv")
+    print(f"\nSaved {len(all_products)} products to data/shoes.csv")
+
+    # Save as JSON
+    with open('data/shoes.json', 'w', encoding='utf-8') as f:
+        json.dump(all_products, f, indent=2, ensure_ascii=False)
+    print(f"Saved {len(all_products)} products to data/shoes.json")
+
+    # Save to SQLite
+    conn = sqlite3.connect('data/shoes.db')
+    c = conn.cursor()
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS shoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            price TEXT,
+            url TEXT,
+            image TEXT
+        )
+    ''')
+
+    # Clear old data
+    c.execute('DELETE FROM shoes')
+
+    # Insert new data
+    c.executemany('''
+        INSERT INTO shoes (name, price, url, image)
+        VALUES (?, ?, ?, ?)
+    ''', [(p['name'], p['price'], p['url'], p['image']) for p in all_products])
+
+    conn.commit()
+    conn.close()
+    print(f"Saved {len(all_products)} products to data/shoes.db")
+
+    # Use pandas
+    df = pd.DataFrame(all_products)
+
+    def clean_price(price_str):
+        if not price_str:
+            return None
+        match = re.search(r'[\d,.]+', price_str)
+        if match:
+            return float(match.group(0).replace(',', ''))
+        return None
+
+    df['price_clean'] = df['price'].apply(clean_price)
+
+    df = df[df['price_clean'].notnull()]
+
+    max_price = df['price_clean'].max()
+    bins = list(range(0, int(max_price) + 50, 50))
+    labels = [f"${bins[i]}-${bins[i + 1] - 1}" for i in range(len(bins) - 1)]
+
+    df['price_range'] = pd.cut(df['price_clean'], bins=bins, labels=labels, right=False)
+
+    print("\nSample of data:")
+    print(df.head())
+
+    print("\nPrice range counts:")
+    print(df['price_range'].value_counts().sort_index())
 
 if __name__ == "__main__":
     main()
