@@ -3,6 +3,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import time
+import csv
 
 def main():
     # Setup ChromeDriver automatically
@@ -40,6 +41,7 @@ def main():
 
     container = soup.find('div', id='skip-to-products')
     shoes = container.find_all('div', attrs={'data-product-position': True})
+    products = []
 
     for shoe in shoes:
         name_tag = shoe.find('a', class_='product-card__link-overlay')
@@ -48,7 +50,14 @@ def main():
         if name_tag and price_tag:
             product_name = name_tag.text.strip()
             product_price = price_tag.text.strip()
+            products.append({'name': product_name, 'price': product_price})
             print(product_name, product_price)
+
+    with open('data/shoes.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=['name', 'price'])
+        writer.writeheader()
+        writer.writerows(products)
+    print(f"\nSaved {len(products)} products to data/shoes.csv")
 
     driver.quit()
 
