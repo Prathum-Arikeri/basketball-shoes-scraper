@@ -12,3 +12,5 @@ soupsieve==2.7
 typing_extensions==4.14.1
 tzdata==2025.2
 urllib3==2.5.0
+selenium
+webdriver-manager
